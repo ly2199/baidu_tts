@@ -1,0 +1,13 @@
+{
+  "domain": "baidu_tts",
+  "name": "百度文字转语音",
+  "version": "1.0.0",
+  "documentation": "https://github.com/ly2199/baidu_tts",
+  "requirements": ["requests>=2.25.0"],
+  "dependencies": [],
+  "codeowners": ["@ly2199"],
+  "config_flow": true,
+  "iot_class": "cloud_push",
+  "single_config_entry": true,
+  "integration_type": "service"
+}

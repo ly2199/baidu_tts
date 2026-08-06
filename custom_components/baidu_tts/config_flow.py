@@ -1,157 +1,157 @@
-"""Config flow for Baidu TTS."""
+"""Config flow for the Baidu TTS integration."""
 from __future__ import annotations
+
 import logging
-import voluptuous as vol
 from typing import Any
 
-from homeassistant import config_entries
-from homeassistant.core import callback
-from homeassistant.data_entry_flow import FlowResult
+import aiohttp
+import voluptuous as vol
+
+from homeassistant.components.tts import ATTR_VOICE
+from homeassistant.config_entries import (
+    ConfigEntry,
+    ConfigFlow,
+    ConfigFlowResult,
+    OptionsFlow,
+)
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import (
-    DOMAIN, CONF_API_KEY, CONF_API_SECRET, CONF_SPEAKER,
-    CONF_SPEED, CONF_PITCH, CONF_VOLUME, CONF_AUDIO_TYPE,
-    CONF_CUID, DEFAULT_SPEAKER, DEFAULT_SPEED, DEFAULT_PITCH,
-    DEFAULT_VOLUME, DEFAULT_AUDIO_TYPE, DEFAULT_CUID,
-    SPEAKER_OPTIONS, AUDIO_TYPE_OPTIONS
+    AUDIO_TYPE_OPTIONS,
+    CONF_API_KEY,
+    CONF_API_SECRET,
+    CONF_AUDIO_TYPE,
+    CONF_CUID,
+    CONF_PITCH,
+    CONF_SPEED,
+    CONF_VOLUME,
+    DEFAULT_AUDIO_TYPE,
+    DEFAULT_CUID,
+    DEFAULT_PITCH,
+    DEFAULT_SPEED,
+    DEFAULT_SPEAKER,
+    DEFAULT_VOLUME,
+    DOMAIN,
+    SPEAKER_OPTIONS,
+    TOKEN_URL,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
-class BaiduTTSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for Baidu TTS."""
-    
-    VERSION = 1
-    
-    async def async_step_user(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Handle the initial step."""
-        errors: dict[str, str] = {}
-        
-        if user_input is not None:
-            # 验证API凭证
-            try:
-                import requests
-                url = "https://aip.baidubce.com/oauth/2.0/token"
-                params = {
-                    "grant_type": "client_credentials",
-                    "client_id": user_input[CONF_API_KEY],
-                    "client_secret": user_input[CONF_API_SECRET]
-                }
-                
-                response = await self.hass.async_add_executor_job(
-                    requests.post, url, params
-                )
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    if "access_token" in data:
-                        return self.async_create_entry(
-                            title="百度TTS",
-                            data=user_input,
-                            options={
-                                CONF_SPEAKER: user_input.get(CONF_SPEAKER, DEFAULT_SPEAKER),
-                                CONF_SPEED: user_input.get(CONF_SPEED, DEFAULT_SPEED),
-                                CONF_PITCH: user_input.get(CONF_PITCH, DEFAULT_PITCH),
-                                CONF_VOLUME: user_input.get(CONF_VOLUME, DEFAULT_VOLUME),
-                                CONF_AUDIO_TYPE: user_input.get(CONF_AUDIO_TYPE, DEFAULT_AUDIO_TYPE),
-                                CONF_CUID: user_input.get(CONF_CUID, DEFAULT_CUID),
-                            }
-                        )
-                    else:
-                        errors["base"] = "invalid_auth"
-                        _LOGGER.error("Authentication failed: %s", data)
-                else:
-                    errors["base"] = "cannot_connect"
-                    _LOGGER.error("Connection failed: %s", response.status_code)
-                    
-            except Exception as err:
-                _LOGGER.error("Error during authentication: %s", err)
-                errors["base"] = "unknown"
-        
-        # 创建配置表单
-        speaker_options = {k: f"{v} ({k})" for k, v in SPEAKER_OPTIONS.items()}
-        
-        data_schema = vol.Schema({
-            vol.Required(CONF_API_KEY): str,
-            vol.Required(CONF_API_SECRET): str,
-            vol.Optional(CONF_CUID, default=DEFAULT_CUID): str,
-            vol.Optional(CONF_SPEAKER, default=DEFAULT_SPEAKER): vol.In(speaker_options),
-            vol.Optional(CONF_SPEED, default=DEFAULT_SPEED): vol.All(
-                vol.Coerce(int), vol.Range(min=0, max=15)
-            ),
-            vol.Optional(CONF_PITCH, default=DEFAULT_PITCH): vol.All(
-                vol.Coerce(int), vol.Range(min=0, max=15)
-            ),
-            vol.Optional(CONF_VOLUME, default=DEFAULT_VOLUME): vol.All(
-                vol.Coerce(int), vol.Range(min=0, max=15)
-            ),
-            vol.Optional(CONF_AUDIO_TYPE, default=DEFAULT_AUDIO_TYPE): vol.In(AUDIO_TYPE_OPTIONS),
-        })
-        
-        return self.async_show_form(
-            step_id="user",
-            data_schema=data_schema,
-            errors=errors
-        )
-    
-    @staticmethod
-    @callback
-    def async_get_options_flow(
-        config_entry: config_entries.ConfigEntry,
-    ) -> config_entries.OptionsFlow:
-        """Get the options flow for this handler."""
-        return BaiduTTSOptionsFlow(config_entry)
+SPEAKER_SELECTOR = {k: f"{v} ({k})" for k, v in SPEAKER_OPTIONS.items()}
 
-class BaiduTTSOptionsFlow(config_entries.OptionsFlow):
-    """Handle options flow for Baidu TTS."""
-    
-    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        """Initialize options flow."""
-        self._config_entry = config_entry
-    
-    async def async_step_init(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Manage the options."""
-        errors: dict[str, str] = {}
-        
-        if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
-        
-        # 创建选项表单
-        speaker_options = {k: f"{v} ({k})" for k, v in SPEAKER_OPTIONS.items()}
-        
-        options_schema = vol.Schema({
-            vol.Optional(
-                CONF_SPEAKER,
-                default=self._config_entry.options.get(CONF_SPEAKER, DEFAULT_SPEAKER)
-            ): vol.In(speaker_options),
-            vol.Optional(
-                CONF_SPEED,
-                default=self._config_entry.options.get(CONF_SPEED, DEFAULT_SPEED)
+
+async def _async_validate_credentials(
+    hass: HomeAssistant, api_key: str, api_secret: str
+) -> str | None:
+    """Validate API credentials, return an error key or None on success."""
+    params = {
+        "grant_type": "client_credentials",
+        "client_id": api_key,
+        "client_secret": api_secret,
+    }
+    try:
+        response = await async_get_clientsession(hass).post(
+            TOKEN_URL, params=params, timeout=aiohttp.ClientTimeout(total=10)
+        )
+        data = await response.json(content_type=None)
+    except (TimeoutError, aiohttp.ClientError) as err:
+        _LOGGER.error("Cannot connect to Baidu auth service: %s", err)
+        return "cannot_connect"
+
+    if "access_token" in data:
+        return None
+    _LOGGER.error("Baidu authentication failed: %s", data)
+    return "invalid_auth"
+
+
+def _options_schema(defaults: dict[str, Any]) -> vol.Schema:
+    """Build the shared options schema."""
+    return vol.Schema(
+        {
+            vol.Required(
+                ATTR_VOICE, default=defaults.get(ATTR_VOICE, DEFAULT_SPEAKER)
+            ): vol.In(SPEAKER_SELECTOR),
+            vol.Required(
+                CONF_SPEED, default=defaults.get(CONF_SPEED, DEFAULT_SPEED)
             ): vol.All(vol.Coerce(int), vol.Range(min=0, max=15)),
-            vol.Optional(
-                CONF_PITCH,
-                default=self._config_entry.options.get(CONF_PITCH, DEFAULT_PITCH)
+            vol.Required(
+                CONF_PITCH, default=defaults.get(CONF_PITCH, DEFAULT_PITCH)
             ): vol.All(vol.Coerce(int), vol.Range(min=0, max=15)),
-            vol.Optional(
-                CONF_VOLUME,
-                default=self._config_entry.options.get(CONF_VOLUME, DEFAULT_VOLUME)
+            vol.Required(
+                CONF_VOLUME, default=defaults.get(CONF_VOLUME, DEFAULT_VOLUME)
             ): vol.All(vol.Coerce(int), vol.Range(min=0, max=15)),
-            vol.Optional(
+            vol.Required(
                 CONF_AUDIO_TYPE,
-                default=self._config_entry.options.get(CONF_AUDIO_TYPE, DEFAULT_AUDIO_TYPE)
+                default=defaults.get(CONF_AUDIO_TYPE, DEFAULT_AUDIO_TYPE),
             ): vol.In(AUDIO_TYPE_OPTIONS),
             vol.Optional(
-                CONF_CUID,
-                default=self._config_entry.options.get(CONF_CUID, DEFAULT_CUID)
+                CONF_CUID, default=defaults.get(CONF_CUID, DEFAULT_CUID)
             ): str,
-        })
-        
+        }
+    )
+
+
+class BaiduTTSConfigFlow(ConfigFlow, domain=DOMAIN):
+    """Handle a config flow for Baidu TTS."""
+
+    VERSION = 1
+
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Handle the initial step."""
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            error = await _async_validate_credentials(
+                self.hass, user_input[CONF_API_KEY], user_input[CONF_API_SECRET]
+            )
+            if error is None:
+                options = {
+                    key: value
+                    for key, value in user_input.items()
+                    if key not in (CONF_API_KEY, CONF_API_SECRET)
+                }
+                return self.async_create_entry(
+                    title="百度TTS",
+                    data={
+                        CONF_API_KEY: user_input[CONF_API_KEY],
+                        CONF_API_SECRET: user_input[CONF_API_SECRET],
+                    },
+                    options=options,
+                )
+            errors["base"] = error
+
+        schema = vol.Schema(
+            {
+                vol.Required(CONF_API_KEY): str,
+                vol.Required(CONF_API_SECRET): str,
+            }
+        ).extend(_options_schema({}).schema)
+        return self.async_show_form(
+            step_id="user", data_schema=schema, errors=errors
+        )
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
+        """Get the options flow for this handler."""
+        return BaiduTTSOptionsFlow()
+
+
+class BaiduTTSOptionsFlow(OptionsFlow):
+    """Handle options flow for Baidu TTS."""
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Manage the options."""
+        if user_input is not None:
+            return self.async_create_entry(data=user_input)
+
         return self.async_show_form(
             step_id="init",
-            data_schema=options_schema,
-            errors=errors
+            data_schema=_options_schema(dict(self.config_entry.options)),
         )

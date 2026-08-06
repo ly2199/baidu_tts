@@ -1,41 +1,68 @@
-"""Baidu TTS integration for Home Assistant."""
-import logging
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
-from homeassistant.const import Platform
+"""The Baidu TTS integration."""
+from __future__ import annotations
 
-from .const import DOMAIN
+import logging
+
+from homeassistant.components.tts import ATTR_VOICE
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import Platform
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
+
+from .client import BaiduTTSClient
+from .const import (
+    CONF_API_KEY,
+    CONF_API_SECRET,
+    CONF_CUID,
+    CONF_SPEAKER,
+    DEFAULT_CUID,
+    DOMAIN,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = [Platform.TTS]
 
+
+def _migrate_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Rename the legacy 'speaker' option to the standard 'voice' key."""
+    if CONF_SPEAKER in entry.options and ATTR_VOICE not in entry.options:
+        options = dict(entry.options)
+        options[ATTR_VOICE] = options.pop(CONF_SPEAKER)
+        hass.config_entries.async_update_entry(entry, options=options)
+        _LOGGER.info("Migrated option '%s' to '%s'", CONF_SPEAKER, ATTR_VOICE)
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Baidu TTS from a config entry."""
-    _LOGGER.info("Setting up Baidu TTS entry: %s", entry.entry_id)
-    
-    # 设置TTS平台
+    _migrate_options(hass, entry)
+
+    domain_data: dict[str, BaiduTTSClient] = hass.data.setdefault(DOMAIN, {})
+    client = domain_data.get(entry.entry_id)
+    if client is None:
+        client = BaiduTTSClient(
+            session=async_get_clientsession(hass),
+            api_key=entry.data[CONF_API_KEY],
+            api_secret=entry.data[CONF_API_SECRET],
+            cuid=entry.options.get(CONF_CUID, DEFAULT_CUID),
+        )
+        domain_data[entry.entry_id] = client
+    else:
+        client.cuid = entry.options.get(CONF_CUID, DEFAULT_CUID)
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    
-    # 设置更新监听器
-    entry.async_on_unload(entry.add_update_listener(options_update_listener))
-    
+    entry.async_on_unload(entry.add_update_listener(_async_options_updated))
     return True
 
-async def options_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
+
+async def _async_options_updated(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Handle options update."""
-    _LOGGER.info("Baidu TTS options updated, reloading entry")
     await hass.config_entries.async_reload(entry.entry_id)
+
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
-    _LOGGER.info("Unloading Baidu TTS entry: %s", entry.entry_id)
-    
-    # 卸载平台
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-    
-    # 清理数据
-    if unload_ok and DOMAIN in hass.data:
+    if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id, None)
-    
     return unload_ok

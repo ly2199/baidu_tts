@@ -1,0 +1,43 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Baidu Text-to-Speech",
+        "description": "Enter the credentials of your Baidu AI speech synthesis application.",
+        "data": {
+          "api_key": "API Key",
+          "api_secret": "Secret Key",
+          "voice": "Speaker",
+          "speed": "Speed (0-15)",
+          "pitch": "Pitch (0-15)",
+          "volume": "Volume (0-15)",
+          "audio_type": "Audio format",
+          "cuid": "Customer ID (CUID)"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid API Key or Secret Key",
+      "cannot_connect": "Cannot connect to Baidu auth service, check your network",
+      "unknown": "Unexpected error"
+    },
+    "abort": {
+      "single_instance_allowed": "Only a single instance is allowed"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Baidu TTS Options",
+        "data": {
+          "voice": "Speaker",
+          "speed": "Speed (0-15)",
+          "pitch": "Pitch (0-15)",
+          "volume": "Volume (0-15)",
+          "audio_type": "Audio format",
+          "cuid": "Customer ID (CUID)"
+        }
+      }
+    }
+  }
+}

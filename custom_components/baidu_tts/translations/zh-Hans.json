@@ -1,0 +1,43 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "百度文字转语音",
+        "description": "请填写百度AI开放平台的语音合成应用凭证。",
+        "data": {
+          "api_key": "API Key",
+          "api_secret": "Secret Key",
+          "voice": "发音人",
+          "speed": "语速 (0-15)",
+          "pitch": "音调 (0-15)",
+          "volume": "音量 (0-15)",
+          "audio_type": "音频格式",
+          "cuid": "用户标识 (CUID)"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "API Key 或 Secret Key 无效",
+      "cannot_connect": "无法连接百度认证服务，请检查网络",
+      "unknown": "发生未知错误"
+    },
+    "abort": {
+      "single_instance_allowed": "仅允许配置一个实例"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "百度TTS选项",
+        "data": {
+          "voice": "发音人",
+          "speed": "语速 (0-15)",
+          "pitch": "音调 (0-15)",
+          "volume": "音量 (0-15)",
+          "audio_type": "音频格式",
+          "cuid": "用户标识 (CUID)"
+        }
+      }
+    }
+  }
+}

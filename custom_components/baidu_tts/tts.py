@@ -59,6 +59,7 @@ class BaiduTTSEntity(TextToSpeechEntity):
     _attr_default_language = "zh"
     _attr_supported_languages = ["zh"]
     _attr_supported_options = SUPPORTED_OPTIONS
+    _attr_icon = "mdi:speaker-message"
     _attr_name = None
 
     def __init__(self, config_entry: ConfigEntry, client: BaiduTTSClient) -> None:

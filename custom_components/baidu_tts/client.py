@@ -30,7 +30,7 @@ SUB_DELIMITERS = "，,、：:"
 
 _REQUEST_HEADERS = {
     "Content-Type": "application/x-www-form-urlencoded",
-    "User-Agent": "HomeAssistant-BaiduTTS/2.0.0",
+    "User-Agent": "HomeAssistant-BaiduTTS/1.0.1",
 }
 
 

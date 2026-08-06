@@ -60,7 +60,7 @@ class BaiduTTSEntity(TextToSpeechEntity):
     _attr_supported_languages = ["zh"]
     _attr_supported_options = SUPPORTED_OPTIONS
     _attr_icon = "mdi:speaker-message"
-    _attr_name = None
+    _attr_name = "百度TTS"
 
     def __init__(self, config_entry: ConfigEntry, client: BaiduTTSClient) -> None:
         """Initialize the entity."""
